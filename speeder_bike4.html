@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Speeder Bike VR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.5.0/aframe.min.js"></script>
+  <style>
+    #hud {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      color: #00ffcc;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      background: rgba(0,0,0,0.5);
+      padding: 12px 18px;
+      border: 1px solid #00ffcc44;
+      border-radius: 4px;
+      z-index: 999;
+      pointer-events: none;
+    }
+    #hud .label { color: #ffffff88; font-size: 11px; }
+    #hud .val   { color: #00ffcc; font-size: 18px; font-weight: bold; }
+    #ws-status  { 
+      position: fixed; bottom: 20px; left: 20px;
+      font-family: monospace; font-size: 12px;
+      padding: 6px 12px; border-radius: 3px;
+      z-index: 999; pointer-events: none;
+    }
+    .connected    { background: #00ff8822; color: #00ff88; border: 1px solid #00ff8844; }
+    .disconnected { background: #ff004422; color: #ff4466; border: 1px solid #ff004444; }
+  </style>
+</head>
+<body>
+
+<!-- 2D HUD overlay (visible in desktop/browser mode) -->
+<div id="hud">
+  <div class="label">POWER</div>
+  <div class="val" id="hud-power">0 W</div>
+  <div class="label" style="margin-top:8px">SPEED</div>
+  <div class="val" id="hud-speed">0.0 km/h</div>
+  <div class="label" style="margin-top:8px">CADENCE</div>
+  <div class="val" id="hud-cadence">0 rpm</div>
+</div>
+<div id="ws-status" class="disconnected">● WAITING FOR COMPANION APP</div>
+
+<a-scene background="color: #0a0a1a" fog="type: exponential; color: #0a0a1a; density: 0.012">
+
+  <!-- ───────── ASSETS ───────── -->
+  <a-assets>
+    <!-- Speeder bike body (simple procedural shape for now) -->
+  </a-assets>
+
+  <!-- ───────── ENVIRONMENT ───────── -->
+
+  <!-- Stars -->
+  <a-entity id="stars">
+    <a-sky color="#0a0a1a"></a-sky>
+    <!-- Star field via point particles -->
+    <a-entity geometry="primitive: sphere; radius: 800; segmentsWidth: 8; segmentsHeight: 8"
+              material="color: #0a0a1a; side: back; shader: flat">
+    </a-entity>
+  </a-entity>
+
+  <!-- Canyon floor -->
+  <a-plane position="0 -4 0" rotation="-90 0 0" width="200" height="2000"
+           color="#1a0e06"
+           material="roughness: 0.95; metalness: 0.05">
+  </a-plane>
+
+  <!-- Canyon walls — left -->
+  <a-box position="-28 8 -50" width="20" height="28" depth="2000"
+         color="#2a1506"
+         material="roughness:0.98">
+  </a-box>
+  <!-- Canyon walls — right -->
+  <a-box position="28 8 -50" width="20" height="28" depth="2000"
+         color="#1e1008"
+         material="roughness:0.98">
+  </a-box>
+
+  <!-- Atmospheric glow strips on canyon walls -->
+  <a-box position="-17 0 -100" width="0.1" height="3" depth="2000"
+         material="color:#ff4400; emissive:#ff2200; emissiveIntensity:0.6; shader:flat">
+  </a-box>
+  <a-box position="17 0 -100" width="0.1" height="3" depth="2000"
+         material="color:#ff4400; emissive:#ff2200; emissiveIntensity:0.6; shader:flat">
+  </a-box>
+
+  <!-- Speed lines — these get animated by the game loop -->
+  <a-entity id="speed-lines">
+    <a-cylinder position="-5 0 -20"  radius="0.02" height="40" rotation="90 0 0"
+                material="color:#00ffcc; emissive:#00ffcc; emissiveIntensity:0.8; opacity:0.4; transparent:true; shader:flat">
+    </a-cylinder>
+    <a-cylinder position="5 0 -20"   radius="0.02" height="40" rotation="90 0 0"
+                material="color:#00ffcc; emissive:#00ffcc; emissiveIntensity:0.8; opacity:0.4; transparent:true; shader:flat">
+    </a-cylinder>
+    <a-cylinder position="-8 1 -20"  radius="0.015" height="40" rotation="90 0 0"
+                material="color:#00ffcc; emissive:#00ffcc; emissiveIntensity:0.6; opacity:0.25; transparent:true; shader:flat">
+    </a-cylinder>
+    <a-cylinder position="8 1 -20"   radius="0.015" height="40" rotation="90 0 0"
+                material="color:#00ffcc; emissive:#00ffcc; emissiveIntensity:0.6; opacity:0.25; transparent:true; shader:flat">
+    </a-cylinder>
+  </a-entity>
+
+  <!-- Obstacle rocks scattered through canyon -->
+  <a-entity id="obstacles">
+    <a-sphere position="-6 -2 -80"  radius="2.5" color="#2a1a0a" material="roughness:0.99"></a-sphere>
+    <a-sphere position="9 -2 -150"  radius="3"   color="#231508" material="roughness:0.99"></a-sphere>
+    <a-sphere position="-12 -2 -240" radius="2"  color="#2a1a0a" material="roughness:0.99"></a-sphere>
+    <a-sphere position="5 -2 -320"  radius="4"   color="#1e1008" material="roughness:0.99"></a-sphere>
+    <a-sphere position="-3 -2 -420" radius="2.5" color="#2a1a0a" material="roughness:0.99"></a-sphere>
+    <a-sphere position="11 -2 -500" radius="3.5" color="#231508" material="roughness:0.99"></a-sphere>
+  </a-entity>
+
+  <!-- ───────── SPEEDER BIKE (camera rig) ───────── -->
+  <a-entity id="bike-rig" position="0 1.5 0">
+
+    <!-- The bike body visible to player -->
+    <a-entity id="bike-body" position="0 -0.6 -1.2">
+
+      <!-- Main hull -->
+      <a-box width="0.5" height="0.2" depth="1.8"
+             material="color:#1a1a2e; emissive:#0a0a1a; emissiveIntensity:0.3; roughness:0.3; metalness:0.7">
+      </a-box>
+
+      <!-- Engine pods -->
+      <a-cylinder position="-0.35 0 0.3" radius="0.08" height="1.2" rotation="90 0 0"
+                  material="color:#0d0d1a; emissive:#000033; emissiveIntensity:0.5; metalness:0.9">
+      </a-cylinder>
+      <a-cylinder position="0.35 0 0.3" radius="0.08" height="1.2" rotation="90 0 0"
+                  material="color:#0d0d1a; emissive:#000033; emissiveIntensity:0.5; metalness:0.9">
+      </a-cylinder>
+
+      <!-- Engine glow — color shifts with power -->
+      <a-sphere id="engine-glow-l" position="-0.35 0 0.9" radius="0.06"
+                material="color:#00ccff; emissive:#00ccff; emissiveIntensity:1.0; shader:flat">
+      </a-sphere>
+      <a-sphere id="engine-glow-r" position="0.35 0 0.9" radius="0.06"
+                material="color:#00ccff; emissive:#00ccff; emissiveIntensity:1.0; shader:flat">
+      </a-sphere>
+
+      <!-- Handlebar -->
+      <a-cylinder position="0 0.15 -0.5" radius="0.025" height="0.9" rotation="0 0 90"
+                  color="#444466" material="metalness:0.9; roughness:0.2">
+      </a-cylinder>
+
+    </a-entity><!-- /bike-body -->
+
+    <!-- Camera sits at rider eye level -->
+    <a-camera id="player-cam" position="0 0 0"
+              wasd-controls-enabled="false"
+              look-controls="pointerLockEnabled: false">
+
+      <!-- VR HUD (in-world, only visible in headset) -->
+      <a-entity position="0 -0.3 -1" id="vr-hud">
+        <a-text id="vr-power"   value="0 W"      color="#00ffcc" align="left"
+                position="-0.35 0.08 0" width="1.2" font="monoid">
+        </a-text>
+        <a-text id="vr-speed"   value="0.0 km/h" color="#ffffff" align="left"
+                position="-0.35 0 0"   width="1.2" font="monoid">
+        </a-text>
+        <a-text id="vr-cadence" value="0 rpm"    color="#ffffff" align="left"
+                position="-0.35 -0.08 0" width="1.2" font="monoid">
+        </a-text>
+      </a-entity>
+
+    </a-camera>
+
+  </a-entity><!-- /bike-rig -->
+
+  <!-- Lighting -->
+  <a-light type="ambient"     color="#111133" intensity="0.8"></a-light>
+  <a-light type="directional" color="#ff6622" intensity="0.6"
+           position="-1 2 -3"></a-light>
+  <a-light type="point"       color="#00aaff" intensity="1.2"
+           position="0 4 0" distance="40"></a-light>
+
+</a-scene>
+
+<!-- ═══════════════════════════════════════════
+     GAME LOGIC
+═══════════════════════════════════════════ -->
+<script>
+
+// ─────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────
+
+const WS_PORT        = 8765;           // must match Kotlin companion app
+const MAX_POWER      = 400;            // watts at full throttle
+const MAX_SPEED_Z    = 0.8;            // max forward velocity per frame (A-Frame units)
+const STEERING_SPEED = 0.04;           // lateral movement speed multiplier
+const IDLE_SPEED_Z   = 0.05;           // drift forward even at zero watts
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+
+let bikeData = {
+  power_watts:  0,
+  cadence_rpm:  0,
+  speed_kmh:    0,
+  steering:     0.0,   // -1.0 to 1.0 (from handlebars, later)
+};
+
+let posX = 0;
+let posZ = 0;
+
+// ─────────────────────────────────────────────
+// WEBSOCKET — receive data from companion app
+// ─────────────────────────────────────────────
+
+let ws;
+const statusEl = document.getElementById('ws-status');
+
+function connectWS() {
+  const params = new URLSearchParams(window.location.search);
+  // ?ws=wss://full-url takes priority (for cloudflare tunnel)
+  // ?host=ip falls back to local ws:// connection
+  const wsUrl = params.get('ws')
+    || `ws://${params.get('host') || '192.168.1.100'}:${WS_PORT}`;
+  console.log('[WS] Connecting to:', wsUrl);
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    statusEl.className = 'connected';
+    statusEl.textContent = '● COMPANION CONNECTED';
+    console.log('[WS] Connected to companion app');
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      bikeData.power_watts = data.power  ?? 0;
+      bikeData.cadence_rpm = data.cadence ?? 0;
+      bikeData.speed_kmh   = data.speed  ?? 0;
+      bikeData.steering    = data.steering ?? 0;
+      updateHUD();
+    } catch(e) {
+      console.warn('[WS] Parse error:', e);
+    }
+  };
+
+  ws.onclose = () => {
+    statusEl.className = 'disconnected';
+    statusEl.textContent = '● COMPANION DISCONNECTED — retrying...';
+    setTimeout(connectWS, 3000);
+  };
+
+  ws.onerror = (e) => {
+    console.warn('[WS] Error:', e);
+    ws.close();
+  };
+}
+
+connectWS();
+
+// ─────────────────────────────────────────────
+// HUD UPDATE
+// ─────────────────────────────────────────────
+
+const hudPower   = document.getElementById('hud-power');
+const hudSpeed   = document.getElementById('hud-speed');
+const hudCadence = document.getElementById('hud-cadence');
+const vrPower    = document.getElementById('vr-power');
+const vrSpeed    = document.getElementById('vr-speed');
+const vrCadence  = document.getElementById('vr-cadence');
+
+function updateHUD() {
+  const p = bikeData.power_watts;
+  const s = bikeData.speed_kmh.toFixed(1);
+  const c = Math.round(bikeData.cadence_rpm);
+
+  hudPower.textContent   = `${p} W`;
+  hudSpeed.textContent   = `${s} km/h`;
+  hudCadence.textContent = `${c} rpm`;
+
+  if (vrPower)   vrPower.setAttribute('value',   `${p} W`);
+  if (vrSpeed)   vrSpeed.setAttribute('value',   `${s} km/h`);
+  if (vrCadence) vrCadence.setAttribute('value', `${c} rpm`);
+}
+
+// ─────────────────────────────────────────────
+// CONTROLLER STEERING (Quest controller fallback
+// while handlebar hardware is not yet built)
+// ─────────────────────────────────────────────
+
+let controllerSteer = 0;
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft')  controllerSteer = -1;
+  if (e.key === 'ArrowRight') controllerSteer =  1;
+});
+document.addEventListener('keyup', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') controllerSteer = 0;
+});
+
+// A-Frame thumbstick support
+AFRAME.registerComponent('thumbstick-steer', {
+  tick() {
+    const gamepad = navigator.getGamepads ? navigator.getGamepads()[0] : null;
+    if (gamepad) controllerSteer = gamepad.axes[2] || 0; // right thumbstick X
+  }
+});
+
+// ─────────────────────────────────────────────
+// GAME LOOP — runs every frame
+// ─────────────────────────────────────────────
+
+AFRAME.registerComponent('bike-controller', {
+
+  init() {
+    this.bikeRig   = document.getElementById('bike-rig');
+    this.bikeBody  = document.getElementById('bike-body');
+    this.engineL   = document.getElementById('engine-glow-l');
+    this.engineR   = document.getElementById('engine-glow-r');
+    this.speedLines = document.getElementById('speed-lines');
+    this.obstacles  = document.getElementById('obstacles');
+  },
+
+  tick(time, delta) {
+    const dt = delta / 1000; // seconds
+
+    // ── Thrust from power output ──
+    const powerNorm  = Math.min(bikeData.power_watts / MAX_POWER, 1.0);
+    const forwardVel = IDLE_SPEED_Z + powerNorm * (MAX_SPEED_Z - IDLE_SPEED_Z);
+
+    // ── Steering (handlebar data or controller fallback) ──
+    const steer = bikeData.steering !== 0 ? bikeData.steering : controllerSteer;
+    posX += steer * STEERING_SPEED * (1 + powerNorm * 0.5);
+    posX  = Math.max(-14, Math.min(14, posX)); // clamp to canyon width
+
+    // ── Move world toward player (player stays at z=0) ──
+    posZ -= forwardVel;
+
+    // ── Apply position ──
+    this.bikeRig.object3D.position.x = posX;
+
+    // Scroll obstacles toward player
+    const obs = this.obstacles.object3D;
+    obs.position.z = -posZ;
+
+    // ── Bank the bike body on steering ──
+    const targetRoll = -steer * 0.3;
+    const currentRoll = this.bikeBody.object3D.rotation.z;
+    this.bikeBody.object3D.rotation.z += (targetRoll - currentRoll) * 0.12;
+
+    // ── Engine glow color: blue (idle) → orange (max power) ──
+    const r = Math.floor(powerNorm * 255);
+    const g = Math.floor(100 + powerNorm * 155);
+    const b = Math.floor(255 - powerNorm * 200);
+    const glowColor = `rgb(${r},${g},${b})`;
+    this.engineL.setAttribute('color', glowColor);
+    this.engineR.setAttribute('color', glowColor);
+
+    // ── Speed lines opacity scales with power ──
+    this.speedLines.querySelectorAll('a-cylinder').forEach((line, i) => {
+      const base = i < 2 ? 0.4 : 0.25;
+      const opacity = base * (0.2 + powerNorm);
+      line.setAttribute('material', `color:#00ffcc; opacity:${opacity}; transparent:true; shader:flat`);
+    });
+  }
+
+});
+
+// Attach game loop to scene
+document.querySelector('a-scene').setAttribute('bike-controller', '');
+document.querySelector('a-scene').setAttribute('thumbstick-steer', '');
+
+</script>
+</body>
+</html>
