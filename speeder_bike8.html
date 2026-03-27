@@ -228,9 +228,6 @@
     }
   });
 
-  document.querySelector('a-scene').setAttribute('bike-controller', '');
-  document.querySelector('a-scene').setAttribute('thumbstick-steer', '');
-
   </script>
 </head>
 <body>
@@ -433,6 +430,17 @@
   });
 
   connectWS();
+
+  const scene = document.querySelector('a-scene');
+  if (scene.hasLoaded) {
+    scene.setAttribute('bike-controller', '');
+    scene.setAttribute('thumbstick-steer', '');
+  } else {
+    scene.addEventListener('loaded', () => {
+      scene.setAttribute('bike-controller', '');
+      scene.setAttribute('thumbstick-steer', '');
+    });
+  }
 </script>
 </body>
 </html>
