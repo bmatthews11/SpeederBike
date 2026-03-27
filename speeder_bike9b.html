@@ -381,13 +381,13 @@
   if (scene.hasLoaded) {
     scene.setAttribute('bike-controller', '');
     scene.setAttribute('thumbstick-steer', '');
+    connectWS();
   } else {
     scene.addEventListener('loaded', function () {
       scene.setAttribute('bike-controller', '');
       scene.setAttribute('thumbstick-steer', '');
     });
   }
-  connectWS();
 </script>
 </body>
 </html>
