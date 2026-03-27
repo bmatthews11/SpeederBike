@@ -375,7 +375,7 @@
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { controllerSteer = 0; }
   });
 
-  connectWS();
+  
 
   var scene = document.querySelector('a-scene');
   if (scene.hasLoaded) {
@@ -387,6 +387,7 @@
       scene.setAttribute('thumbstick-steer', '');
     });
   }
+  connectWS();
 </script>
 </body>
 </html>
