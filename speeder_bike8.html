@@ -167,15 +167,15 @@
   // GAME LOOP
   // ─────────────────────────────────────────────
   AFRAME.registerComponent('bike-controller', {
-    init() {
-      const setup = () => {
-      this.bikeRig    = document.getElementById('bike-rig');
-      this.bikeBody   = document.getElementById('bike-body');
-      this.engineL    = document.getElementById('engine-glow-l');
-      this.engineR    = document.getElementById('engine-glow-r');
-      this.speedLines = document.getElementById('speed-lines');
-      this.obstacles  = document.getElementById('obstacles');
-    };
+  init() {
+    const setup = () => {
+    this.bikeRig    = document.getElementById('bike-rig');
+    this.bikeBody   = document.getElementById('bike-body');
+    this.engineL    = document.getElementById('engine-glow-l');
+    this.engineR    = document.getElementById('engine-glow-r');
+    this.speedLines = document.getElementById('speed-lines');
+    this.obstacles  = document.getElementById('obstacles');
+  };
   if (this.el.hasLoaded) {
     setup();
   } else {
@@ -242,7 +242,7 @@
 
 <a-scene background="color: #0a0a1a" fog="type: exponential; color: #0a0a1a; density: 0.012">
 
-  <a-assets>
+  <a-assets timeout="10000">
     <a-asset-item id="bike-hi" src="https://raw.githubusercontent.com/bmatthews11/SpeederBike/master/Assets/Bike/speeder_bike4K.glb"></a-asset-item>
     <a-asset-item id="bike-lo" src="https://raw.githubusercontent.com/bmatthews11/SpeederBike/master/Assets/Bike/speeder_bike1K.glb"></a-asset-item>
   </a-assets>
