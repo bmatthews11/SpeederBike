@@ -225,10 +225,11 @@
 
       dbg('dbg-pnorm', `NORM:${powerNorm.toFixed(3)} vel:${forwardVel.toFixed(3)}`);
       dbg('dbg-posz',  `posZ:${posZ.toFixed(1)} posX:${posX.toFixed(2)}`);
-      document.querySelector('a-scene').setAttribute('bike-controller', '');
-      document.querySelector('a-scene').setAttribute('thumbstick-steer', '');
     }
   });
+
+  document.querySelector('a-scene').setAttribute('bike-controller', '');
+  document.querySelector('a-scene').setAttribute('thumbstick-steer', '');
 
   </script>
 </head>
