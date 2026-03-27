@@ -225,6 +225,8 @@
 
       dbg('dbg-pnorm', `NORM:${powerNorm.toFixed(3)} vel:${forwardVel.toFixed(3)}`);
       dbg('dbg-posz',  `posZ:${posZ.toFixed(1)} posX:${posX.toFixed(2)}`);
+      document.querySelector('a-scene').setAttribute('bike-controller', '');
+      document.querySelector('a-scene').setAttribute('thumbstick-steer', '');
     }
   });
 
@@ -314,7 +316,7 @@
         src="#bike-hi"
         bike-lod="hiSrc: #bike-hi; loSrc: #bike-lo; distance: 10"
         scale="1 1 1"
-        rotation="0 180 0">
+        rotation="0 0 0">
       </a-gltf-model>
 
       <!-- Engine glows — tweak XYZ to match model's engine ports -->
