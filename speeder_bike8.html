@@ -168,22 +168,20 @@
   // ─────────────────────────────────────────────
   AFRAME.registerComponent('bike-controller', {
     init() {
-      this.bikeRig    = null;
-      this.bikeBody   = null;
-      this.engineL    = null;
-      this.engineR    = null;
-      this.speedLines = null;
-      this.obstacles  = null;
-      // Wait for scene to finish loading before grabbing elements
-      this.el.addEventListener('loaded', () => {
-        this.bikeRig    = document.getElementById('bike-rig');
-        this.bikeBody   = document.getElementById('bike-body');
-        this.engineL    = document.getElementById('engine-glow-l');
-        this.engineR    = document.getElementById('engine-glow-r');
-        this.speedLines = document.getElementById('speed-lines');
-        this.obstacles  = document.getElementById('obstacles');
-      });
-    },
+      const setup = () => {
+      this.bikeRig    = document.getElementById('bike-rig');
+      this.bikeBody   = document.getElementById('bike-body');
+      this.engineL    = document.getElementById('engine-glow-l');
+      this.engineR    = document.getElementById('engine-glow-r');
+      this.speedLines = document.getElementById('speed-lines');
+      this.obstacles  = document.getElementById('obstacles');
+    };
+  if (this.el.hasLoaded) {
+    setup();
+  } else {
+    this.el.addEventListener('loaded', setup);
+  }
+},
 
     tick(time, delta) {
       if (!this.bikeRig) return;
