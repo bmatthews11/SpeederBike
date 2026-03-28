@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Speeder Bike VR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+
+  <style>
+    #hud {
+      position: fixed; top: 20px; left: 20px;
+      color: #00ffcc; font-family: 'Courier New', monospace; font-size: 14px;
+      background: rgba(0,0,0,0.5); padding: 12px 18px;
+      border: 1px solid #00ffcc44; border-radius: 4px;
+      z-index: 999; pointer-events: none;
+    }
+    #hud .label { color: #ffffff88; font-size: 11px; }
+    #hud .val   { color: #00ffcc; font-size: 18px; font-weight: bold; }
+    #ws-status {
+      position: fixed; bottom: 20px; left: 20px;
+      font-family: monospace; font-size: 12px;
+      padding: 6px 12px; border-radius: 3px;
+      z-index: 999; pointer-events: none;
+    }
+    .connected    { background: #00ff8822; color: #00ff88; border: 1px solid #00ff8844; }
+    .disconnected { background: #ff004422; color: #ff4466; border: 1px solid #ff004444; }
+  </style>
+
+  <script>
+    var aframeSteering = 0;
+
+    function dbgHead(id, val) {
+      var el = document.getElementById(id);
+      if (el) { el.setAttribute('value', String(val)); }
+    }
+
+    AFRAME.registerComponent('thumbstick-steering', {
+      init: function () {
+        var self = this;
+        function attach() {
+          self.el.addEventListener('thumbstickmoved', function (e) {
+            aframeSteering = e.detail.x;
+            dbgHead('dbg-aframe', 'AFRAME:x=' + e.detail.x.toFixed(2) + ' y=' + e.detail.y.toFixed(2));
+          });
+          self.el.addEventListener('thumbstickup', function () {
+            aframeSteering = 0;
+            dbgHead('dbg-aframe', 'AFRAME:released');
+          });
+          dbgHead('dbg-aframe', 'AFRAME:listening');
+        }
+        if (this.el.hasLoaded) {
+          attach();
+        } else {
+          this.el.addEventListener('loaded', attach);
+        }
+      }
+    });
+  </script>
+</head>
+<body>
+
+<div id="hud">
+  <div class="label">POWER</div>
+  <div class="val" id="hud-power">0 W</div>
+  <div class="label" style="margin-top:8px">SPEED</div>
+  <div class="val" id="hud-speed">0.0 km/h</div>
+  <div class="label" style="margin-top:8px">CADENCE</div>
+  <div class="val" id="hud-cadence">0 rpm</div>
+</div>
+<div id="ws-status" class="disconnected">● WAITING FOR COMPANION APP</div>
+
+<a-scene background="color: #0a0a1a" fog="type: exponential; color: #0a0a1a; density: 0.012">
+
+  <a-assets></a-assets>
+
+  <!-- Stars — not in world, stays fixed around player always -->
+  <a-entity id="stars">
+    <a-sky color="#0a0a1a"></a-sky>
+    <a-entity geometry="primitive: sphere; radius: 800; segmentsWidth: 8; segmentsHeight: 8"
+              material="color: #0a0a1a; side: back; shader: flat">
+    </a-entity>
+  </a-entity>
+
+  <!-- ═══════════════════════════════════════════════════
+       WORLD entity — everything that moves laterally
+       with steering lives here. Game loop shifts this
+       by -posX so the player appears to move left/right
+       while actually staying at world X=0.
+  ════════════════════════════════════════════════════ -->
+  <a-entity id="world">
+
+    <!-- Canyon floor -->
+    <a-plane position="0 -4 0" rotation="-90 0 0" width="200" height="2000"
+             color="#1a0e06" material="roughness: 0.95; metalness: 0.05">
+    </a-plane>
+
+    <!-- Canyon walls -->
+    <a-box position="-28 8 -50" width="20" height="28" depth="2000"
+           color="#2a1506" material="roughness:0.98">
+    </a-box>
+    <a-box position="28 8 -50" width="20" height="28" depth="2000"
+           color="#1e1008" material="roughness:0.98">
+    </a-box>
+
+    <!-- Glow strips -->
+    <a-box position="-17 0 -100" width="0.1" height="3" depth="2000"
+           material="color:#ff4400; emissive:#ff2200; emissiveIntensity:0.6; shader:flat">
+    </a-box>
+    <a-box position="17 0 -100" width="0.1" height="3" depth="2000"
+           material="color:#ff4400; emissive:#ff2200; emissiveIntensity:0.6; shader:flat">
+    </a-box>
+
+    <!-- Speed lines -->
+    <a-entity id="speed-lines">
+      <a-cylinder position="-5 0 -20"  radius="0.02" height="40" rotation="90 0 0"
+                  material="color:#00ffcc; emissive:#00ffcc; emissiveIntensity:0.8; opacity:0.4; transparent:true; shader:flat">
+      </a-cylinder>
+      <a-cylinder position="5 0 -20"   radius="0.02" height="40" rotation="90 0 0"
+                  material="color:#00ffcc; emissive:#00ffcc; emissiveIntensity:0.8; opacity:0.4; transparent:true; shader:flat">
+      </a-cylinder>
+      <a-cylinder position="-8 1 -20"  radius="0.015" height="40" rotation="90 0 0"
+                  material="color:#00ffcc; emissive:#00ffcc; emissiveIntensity:0.6; opacity:0.25; transparent:true; shader:flat">
+      </a-cylinder>
+      <a-cylinder position="8 1 -20"   radius="0.015" height="40" rotation="90 0 0"
+                  material="color:#00ffcc; emissive:#00ffcc; emissiveIntensity:0.6; opacity:0.25; transparent:true; shader:flat">
+      </a-cylinder>
+    </a-entity>
+
+    <!-- Obstacles -->
+    <a-entity id="obstacles">
+      <a-sphere position="-6 -2 -80"   radius="2.5" color="#2a1a0a" material="roughness:0.99"></a-sphere>
+      <a-sphere position="9 -2 -150"   radius="3"   color="#231508" material="roughness:0.99"></a-sphere>
+      <a-sphere position="-12 -2 -240" radius="2"   color="#2a1a0a" material="roughness:0.99"></a-sphere>
+      <a-sphere position="5 -2 -320"   radius="4"   color="#1e1008" material="roughness:0.99"></a-sphere>
+      <a-sphere position="-3 -2 -420"  radius="2.5" color="#2a1a0a" material="roughness:0.99"></a-sphere>
+      <a-sphere position="11 -2 -500"  radius="3.5" color="#231508" material="roughness:0.99"></a-sphere>
+    </a-entity>
+
+  </a-entity>
+  <!-- end #world -->
+
+  <!-- ═══════════════════════════════════════════════════
+       BIKE RIG — player stays at X=0 always.
+       Only Z is used for the bike body tilt.
+       Controllers are children so they share the
+       same parent, but XR overrides their world pos
+       anyway — keeping them here is just for clarity.
+  ════════════════════════════════════════════════════ -->
+  <a-entity id="bike-rig" position="0 0 0">
+
+    <a-entity id="bike-body" position="0 -0.6 -1.2">
+      <a-box width="0.5" height="0.2" depth="1.8"
+             material="color:#1a1a2e; emissive:#0a0a1a; emissiveIntensity:0.3; roughness:0.3; metalness:0.7">
+      </a-box>
+      <a-cylinder position="-0.35 0 0.3" radius="0.08" height="1.2" rotation="90 0 0"
+                  material="color:#0d0d1a; emissive:#000033; emissiveIntensity:0.5; metalness:0.9">
+      </a-cylinder>
+      <a-cylinder position="0.35 0 0.3" radius="0.08" height="1.2" rotation="90 0 0"
+                  material="color:#0d0d1a; emissive:#000033; emissiveIntensity:0.5; metalness:0.9">
+      </a-cylinder>
+      <a-sphere id="engine-glow-l" position="-0.35 0 0.9" radius="0.06"
+                material="color:#00ccff; emissive:#00ccff; emissiveIntensity:1.0; shader:flat">
+      </a-sphere>
+      <a-sphere id="engine-glow-r" position="0.35 0 0.9" radius="0.06"
+                material="color:#00ccff; emissive:#00ccff; emissiveIntensity:1.0; shader:flat">
+      </a-sphere>
+      <a-cylinder position="0 0.15 -0.5" radius="0.025" height="0.9" rotation="0 0 90"
+                  color="#444466" material="metalness:0.9; roughness:0.2">
+      </a-cylinder>
+    </a-entity>
+
+    <a-camera id="player-cam" position="0 0 0"
+              wasd-controls-enabled="false"
+              look-controls="pointerLockEnabled: false">
+
+      <!-- VR HUD -->
+      <a-entity position="0 -0.3 -1" id="vr-hud">
+        <a-text id="vr-power"   value="0 W"      color="#00ffcc" align="left" position="-0.35  0.08 0" width="1.2"></a-text>
+        <a-text id="vr-speed"   value="0.0 km/h" color="#ffffff" align="left" position="-0.35  0    0" width="1.2"></a-text>
+        <a-text id="vr-cadence" value="0 rpm"    color="#ffffff" align="left" position="-0.35 -0.08 0" width="1.2"></a-text>
+      </a-entity>
+
+      <!-- Debug panel -->
+      <a-entity id="debug-panel" position="0.5 0.1 -1">
+        <a-plane width="0.55" height="0.8"
+                 material="color:#000000; opacity:0.7; transparent:true; shader:flat">
+        </a-plane>
+        <a-text id="dbg-ws"     value="WS:--"     color="#ffff00" align="left" position="-0.25  0.35 0.01" width="0.55" wrap-count="30"></a-text>
+        <a-text id="dbg-raw"    value="RAW:--"    color="#00ffff" align="left" position="-0.25  0.27 0.01" width="0.55" wrap-count="30"></a-text>
+        <a-text id="dbg-stored" value="STORED:--" color="#00ffcc" align="left" position="-0.25  0.19 0.01" width="0.55" wrap-count="30"></a-text>
+        <a-text id="dbg-pnorm"  value="NORM:--"   color="#ff8800" align="left" position="-0.25  0.11 0.01" width="0.55" wrap-count="30"></a-text>
+        <a-text id="dbg-posz"   value="posZ:--"   color="#ff8800" align="left" position="-0.25  0.03 0.01" width="0.55" wrap-count="30"></a-text>
+        <a-text id="dbg-gp"     value="GP:none"   color="#ff4444" align="left" position="-0.25 -0.05 0.01" width="0.55" wrap-count="30"></a-text>
+        <a-text id="dbg-axes"   value="AX:--"     color="#ff4444" align="left" position="-0.25 -0.13 0.01" width="0.55" wrap-count="30"></a-text>
+        <a-text id="dbg-steer"  value="STEER:--"  color="#ff4444" align="left" position="-0.25 -0.21 0.01" width="0.55" wrap-count="30"></a-text>
+        <a-text id="dbg-aframe" value="AFRAME:--" color="#ff88ff" align="left" position="-0.25 -0.29 0.01" width="0.55" wrap-count="30"></a-text>
+      </a-entity>
+
+    </a-camera>
+
+    <!-- Controllers inside rig for scene graph clarity,
+         XR system overrides their world position anyway -->
+    <a-entity id="right-controller"
+              oculus-touch-controls="hand: right"
+              thumbstick-steering>
+    </a-entity>
+    <a-entity id="left-controller"
+              oculus-touch-controls="hand: left">
+    </a-entity>
+
+  </a-entity>
+  <!-- end #bike-rig -->
+
+  <!-- Lighting -->
+  <a-light type="ambient"     color="#111133" intensity="0.8"></a-light>
+  <a-light type="directional" color="#ff6622" intensity="0.6" position="-1 2 -3"></a-light>
+  <a-light type="point"       color="#00aaff" intensity="1.2" position="0 4 0" distance="40"></a-light>
+
+</a-scene>
+
+<script>
+  const MAX_POWER      = 150;
+  const MAX_SPEED_Z    = 0.8;
+  const STEERING_SPEED = 0.04;
+  const IDLE_SPEED_Z   = 0.05;
+  const WS_PORT        = 8765;
+
+  let bikeData = { power: 0, cadence: 0, speed: 0, steering: 0.0 };
+  let posX = 0;
+  let posZ = 0;
+  // aframeSteering declared in <head>
+
+  function dbg(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.setAttribute('value', String(val));
+  }
+
+  function updateHUD() {
+    const p = bikeData.power;
+    const s = (bikeData.speed || 0).toFixed(1);
+    const c = Math.round(bikeData.cadence);
+    document.getElementById('hud-power').textContent   = `${p} W`;
+    document.getElementById('hud-speed').textContent   = `${s} km/h`;
+    document.getElementById('hud-cadence').textContent = `${c} rpm`;
+    const vp = document.getElementById('vr-power');
+    const vs = document.getElementById('vr-speed');
+    const vc = document.getElementById('vr-cadence');
+    if (vp) vp.setAttribute('value', `${p} W`);
+    if (vs) vs.setAttribute('value', `${s} km/h`);
+    if (vc) vc.setAttribute('value', `${c} rpm`);
+  }
+
+  let ws;
+  const statusEl = document.getElementById('ws-status');
+
+  function connectWS() {
+    const params = new URLSearchParams(window.location.search);
+    const wsUrl  = params.get('ws')
+      || `ws://${params.get('host') || '192.168.1.100'}:${WS_PORT}`;
+    dbg('dbg-ws', 'WS:CONNECTING');
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      statusEl.className   = 'connected';
+      statusEl.textContent = '● COMPANION CONNECTED';
+      dbg('dbg-ws', 'WS:OPEN');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const raw = JSON.parse(event.data);
+        dbg('dbg-raw', `RAW:p=${raw.power} c=${raw.cadence}`);
+        bikeData.power    = raw.power    ?? 0;
+        bikeData.cadence  = raw.cadence  ?? 0;
+        bikeData.speed    = raw.speed    ?? 0;
+        bikeData.steering = raw.steering ?? 0;
+        dbg('dbg-stored', `p=${bikeData.power} c=${bikeData.cadence}`);
+        updateHUD();
+      } catch(e) {
+        dbg('dbg-ws', 'WS:PARSE ERR');
+      }
+    };
+
+    ws.onclose = () => {
+      statusEl.className   = 'disconnected';
+      statusEl.textContent = '● COMPANION DISCONNECTED — retrying...';
+      dbg('dbg-ws', 'WS:CLOSED');
+      setTimeout(connectWS, 3000);
+    };
+
+    ws.onerror = () => {
+      dbg('dbg-ws', 'WS:ERROR');
+      ws.close();
+    };
+  }
+  connectWS();
+
+  let controllerSteer = 0;
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft')  controllerSteer = -1;
+    if (e.key === 'ArrowRight') controllerSteer =  1;
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') controllerSteer = 0;
+  });
+
+  AFRAME.registerComponent('thumbstick-steer', {
+    tick() {
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      let found = false;
+      for (let i = 0; i < gamepads.length; i++) {
+        const gp = gamepads[i];
+        if (!gp) continue;
+        found = true;
+        const axStr = Array.from(gp.axes).map((v, j) => `${j}:${v.toFixed(1)}`).join(' ');
+        dbg('dbg-gp',   `GP${i}:${gp.id.substring(0, 18)}`);
+        dbg('dbg-axes', axStr);
+        controllerSteer = gp.axes[2] || 0;
+        break;
+      }
+      if (!found) { dbg('dbg-gp', 'GP:none'); }
+      dbg('dbg-steer', `raw:${controllerSteer.toFixed(2)} af:${aframeSteering.toFixed(2)}`);
+    }
+  });
+
+  AFRAME.registerComponent('bike-controller', {
+    init() {
+      this.world      = document.getElementById('world');
+      this.bikeBody   = document.getElementById('bike-body');
+      this.engineL    = document.getElementById('engine-glow-l');
+      this.engineR    = document.getElementById('engine-glow-r');
+      this.speedLines = document.getElementById('speed-lines');
+    },
+
+    tick(time, delta) {
+      const powerNorm  = Math.min(bikeData.power / MAX_POWER, 1.0);
+      const forwardVel = IDLE_SPEED_Z + powerNorm * (MAX_SPEED_Z - IDLE_SPEED_Z);
+
+      const steer = aframeSteering  !== 0 ? aframeSteering
+                  : controllerSteer !== 0 ? controllerSteer
+                  : bikeData.steering;
+
+      posX += steer * STEERING_SPEED * (1 + powerNorm * 0.5);
+      posX  = Math.max(-14, Math.min(14, posX));
+      posZ -= forwardVel;
+
+      // Player stays at X=0 — world shifts in opposite direction
+      this.world.object3D.position.x = -posX;
+      this.world.object3D.position.z = -posZ;
+
+      // Bank the bike body on steering
+      const targetRoll  = -steer * 0.3;
+      const currentRoll = this.bikeBody.object3D.rotation.z;
+      this.bikeBody.object3D.rotation.z += (targetRoll - currentRoll) * 0.12;
+
+      // Engine glow colour shifts warm with power
+      const r = Math.floor(powerNorm * 255);
+      const g = Math.floor(100 + powerNorm * 155);
+      const b = Math.floor(255 - powerNorm * 200);
+      this.engineL.setAttribute('color', `rgb(${r},${g},${b})`);
+      this.engineR.setAttribute('color', `rgb(${r},${g},${b})`);
+
+      this.speedLines.querySelectorAll('a-cylinder').forEach((line, i) => {
+        const base    = i < 2 ? 0.4 : 0.25;
+        const opacity = base * (0.2 + powerNorm);
+        line.setAttribute('material', `color:#00ffcc; opacity:${opacity}; transparent:true; shader:flat`);
+      });
+
+      dbg('dbg-pnorm', `NORM:${powerNorm.toFixed(3)} vel:${forwardVel.toFixed(3)}`);
+      dbg('dbg-posz',  `posZ:${posZ.toFixed(1)} posX:${posX.toFixed(2)}`);
+    }
+  });
+
+  document.querySelector('a-scene').setAttribute('bike-controller', '');
+  document.querySelector('a-scene').setAttribute('thumbstick-steer', '');
+</script>
+</body>
+</html>
