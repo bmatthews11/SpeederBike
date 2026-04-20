@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Speeder Bike</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: 'Courier New', monospace;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      overscroll-behavior: none;
+    }
+    a-scene {
+      position: fixed !important;
+      top: 0; left: 0;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 1;
+    }
+    #hud {
+      position: fixed; top: 20px; left: 20px;
+      color: #00ffcc; font-size: 14px;
+      background: rgba(0,0,0,0.5); padding: 10px 14px;
+      border: 1px solid #00ffcc44; border-radius: 4px;
+      z-index: 100; pointer-events: none;
+      display: none;
+    }
+    #hud .label { color: #ffffff88; font-size: 10px; }
+    #hud .val   { color: #00ffcc; font-size: 16px; font-weight: bold; }
+
+    #ws-status {
+      position: fixed; bottom: 20px; left: 20px;
+      font-size: 11px;
+      padding: 5px 10px; border-radius: 3px;
+      z-index: 100; pointer-events: none;
+      display: none;
+    }
+    .connected    { background: #00ff8822; color: #00ff88; border: 1px solid #00ff8844; }
+    .disconnected { background: #ff004422; color: #ff4466; border: 1px solid #ff004444; }
+
+    /* ── FATAL ERROR ── */
+    #fatal {
+      position: fixed; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      flex-direction: column;
+      background: #1a0505;
+      color: #ff6666; z-index: 10000;
+      text-align: center; padding: 40px;
+    }
+    #fatal h1 { color: #ff4444; font-size: 22px; letter-spacing: 4px; margin-bottom: 16px; }
+    #fatal p  { color: #ffaaaa; font-size: 13px; max-width: 640px; line-height: 1.7; }
+    #fatal code { background: #000; padding: 2px 6px; border-radius: 3px; color: #00ffcc; }
+
+    /* ── MENU ── */
+    #menu {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: #0a0a1a;
+      z-index: 9999;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    #menu h1 {
+      color: #00ffcc;
+      font-size: clamp(28px, 8vw, 46px);
+      letter-spacing: clamp(4px, 2vw, 10px);
+      margin: 0 0 8px 0;
+      text-shadow: 0 0 30px #00ffcc88;
+      text-align: center;
+    }
+    #menu .sub {
+      color: #ffffff44;
+      font-size: clamp(10px, 2.5vw, 13px);
+      letter-spacing: 4px;
+      margin-bottom: 40px;
+      text-align: center;
+    }
+    #menu .prompt {
+      color: #ffffff;
+      font-size: clamp(14px, 3.5vw, 18px);
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    #menu .hint {
+      color: #ffffff44;
+      font-size: clamp(10px, 2.5vw, 12px);
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    #menu .device {
+      color: #00ffcc66;
+      font-size: 11px; letter-spacing: 2px;
+      margin-bottom: 14px; text-transform: uppercase;
+    }
+    #menu-btn {
+      background: transparent; border: 2px solid #00ffcc88;
+      color: #00ffcc;
+      font-family: 'Courier New', monospace;
+      font-size: clamp(12px, 3vw, 15px);
+      letter-spacing: 3px;
+      padding: 18px 48px;
+      margin-top: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 220px;
+      min-height: 54px;
+      touch-action: manipulation;
+    }
+    #menu-btn:hover, #menu-btn:active {
+      background: #00ffcc22; border-color: #00ffcc;
+      box-shadow: 0 0 30px #00ffcc66;
+    }
+    #menu-btn:disabled { opacity: 0.3; cursor: wait; border-color: #00ffcc33; color: #00ffcc66; }
+    #menu .version {
+      position: absolute; bottom: 14px;
+      color: #ffffff22; font-size: 10px; letter-spacing: 2px;
+    }
+    #menu .status {
+      color: #00ffcc44; font-size: 11px; letter-spacing: 2px;
+      margin-top: 16px;
+    }
+    #menu .controls-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 16px;
+      color: #ffffff55; font-size: clamp(10px, 2.2vw, 12px);
+      margin: 10px 0 20px 0;
+      max-width: 360px;
+    }
+    #menu .controls-grid .k {
+      color: #00ffcc99;
+      text-align: right;
+      font-weight: bold;
+    }
+
+    /* ── TOUCH CONTROLS (mobile) ── */
+    #touch-controls {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 35vh;
+      z-index: 50;
+      pointer-events: none;
+      display: none;
+    }
+    #touch-controls.visible { display: block; }
+
+    #touch-throttle {
+      position: absolute;
+      bottom: 24px; left: 24px;
+      width: 110px; height: 110px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #00ffcc11, #00ffcc03);
+      border: 2px solid #00ffcc55;
+      pointer-events: auto;
+      touch-action: none;
+      display: flex; align-items: center; justify-content: center;
+      color: #00ffcc88;
+      font-size: 10px; letter-spacing: 2px;
+    }
+    #touch-throttle-fill {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(to top, #00ffcc44, transparent);
+      border-radius: 0 0 50% 50%;
+      height: 0;
+      transition: height 0.08s;
+      pointer-events: none;
+    }
+    #touch-throttle-label { position: relative; z-index: 2; }
+
+    #touch-steer {
+      position: absolute;
+      bottom: 24px; right: 24px;
+      width: 140px; height: 110px;
+      border-radius: 12px;
+      background: radial-gradient(ellipse, #ff44aa11, #ff44aa03);
+      border: 2px solid #ff44aa55;
+      pointer-events: auto;
+      touch-action: none;
+      display: flex; align-items: center; justify-content: center;
+      color: #ff44aa88;
+      font-size: 10px; letter-spacing: 2px;
+      overflow: hidden;
+    }
+    #touch-steer-stick {
+      position: absolute;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: #ff44aaaa;
+      box-shadow: 0 0 20px #ff44aa;
+      pointer-events: none;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      transition: transform 0.05s;
+    }
+    #touch-steer-label {
+      position: absolute; top: 6px;
+      font-size: 9px;
+    }
+
+    /* ── DIAG (toggleable, hidden by default) ── */
+    #diag {
+      position: fixed; top: 10px; right: 10px;
+      background: rgba(0,0,0,0.85);
+      color: #0f0; font-size: 10px;
+      padding: 8px 12px;
+      border: 1px solid #0f04; border-radius: 4px;
+      z-index: 200; pointer-events: auto;
+      max-width: 280px; line-height: 1.4;
+      display: none;
+    }
+    #diag h3 { margin: 0 0 6px 0; color: #0ff; font-size: 11px; letter-spacing: 2px; }
+    #diag .row { margin: 1px 0; }
+    #diag .k { color: #888; }
+    #diag .v-ok { color: #0f0; }
+    #diag .v-bad { color: #f44; }
+    #diag .v-warn { color: #fa0; }
+    #diag button {
+      background: #222; color: #0ff; border: 1px solid #0ff4;
+      font-family: monospace; font-size: 9px;
+      padding: 3px 8px; margin-top: 6px; cursor: pointer;
+    }
+    #diag-toggle {
+      position: fixed; top: 10px; right: 10px;
+      background: rgba(0,0,0,0.6);
+      color: #0ff8; font-size: 11px;
+      padding: 4px 8px;
+      border: 1px solid #0ff3; border-radius: 3px;
+      z-index: 199; cursor: pointer;
+      font-family: monospace;
+    }
+  </style>
+
+  <script>
+    // ═══════════════════════════════════════════════════
+    // DIAGNOSTIC LOGGING
+    // ═══════════════════════════════════════════════════
+    window.__DIAG = { startTime: performance.now(), events: [], errors: [] };
+    function diagLog(msg, level) {
+      const t = ((performance.now() - window.__DIAG.startTime) / 1000).toFixed(2);
+      const entry = `[${t}s] ${msg}`;
+      window.__DIAG.events.push(entry);
+      if (level === 'err')       { console.error('🔴', entry); window.__DIAG.errors.push(entry); }
+      else if (level === 'warn') { console.warn('🟡', entry); }
+      else                       { console.log('🟢', entry); }
+    }
+    window.addEventListener('error', function (e) {
+      diagLog('ERROR: ' + e.message + ' @ ' + (e.filename || '?') + ':' + e.lineno, 'err');
+    });
+    diagLog('script head running — location: ' + window.location.href);
+
+    // ═══════════════════════════════════════════════════
+    // DEVICE DETECTION
+    // ═══════════════════════════════════════════════════
+    const DEVICE = {
+      isTouch: ('ontouchstart' in window) || navigator.maxTouchPoints > 0,
+      isMobile: /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+      isQuest: /OculusBrowser|Quest/i.test(navigator.userAgent),
+      hasGamepadAPI: typeof navigator.getGamepads === 'function',
+      hasWebXR: !!navigator.xr,
+      vrSupported: false,  // updated async
+      gamepadConnected: false,  // updated on event
+      primaryInput: 'keyboard'  // computed below
+    };
+    // Primary input heuristic — overridable by user actions later
+    if (DEVICE.isQuest)       { DEVICE.primaryInput = 'vr'; }
+    else if (DEVICE.isMobile) { DEVICE.primaryInput = 'touch'; }
+    else if (DEVICE.isTouch)  { DEVICE.primaryInput = 'touch'; }
+    else                      { DEVICE.primaryInput = 'keyboard'; }
+
+    if (navigator.xr) {
+      navigator.xr.isSessionSupported('immersive-vr').then(function (ok) {
+        DEVICE.vrSupported = ok;
+        diagLog('immersive-vr supported: ' + ok);
+        const statusEl = document.getElementById('menu-device');
+        if (statusEl) { updateMenuDeviceInfo(); }
+      }).catch(function () { DEVICE.vrSupported = false; });
+    }
+    diagLog('device: touch=' + DEVICE.isTouch + ' mobile=' + DEVICE.isMobile +
+            ' quest=' + DEVICE.isQuest + ' primary=' + DEVICE.primaryInput);
+
+    // ═══════════════════════════════════════════════════
+    // A-FRAME LOADER (multi-CDN)
+    // ═══════════════════════════════════════════════════
+    window.__AFRAME_READY = false;
+    window.__AFRAME_CALLBACKS = [];
+    function onAframeReady(cb) {
+      if (window.__AFRAME_READY) { cb(); }
+      else { window.__AFRAME_CALLBACKS.push(cb); }
+    }
+    (function loadAframe() {
+      const CDNS = [
+        'https://aframe.io/releases/1.4.2/aframe.min.js',
+        'https://cdn.jsdelivr.net/npm/aframe@1.4.2/dist/aframe-master.min.js',
+        'https://unpkg.com/aframe@1.4.2/dist/aframe.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js'
+      ];
+      let idx = 0;
+      function tryNext() {
+        if (idx >= CDNS.length) {
+          diagLog('ALL CDNs failed', 'err');
+          showFatal('A-FRAME FAILED TO LOAD',
+            'Tried multiple CDNs. Likely causes: sandboxed preview context, ' +
+            'offline, or ad blocker. Save the file and open via ' +
+            '<code>file://</code> or <code>python3 -m http.server</code>.');
+          return;
+        }
+        const s = document.createElement('script');
+        s.src = CDNS[idx];
+        diagLog('loading A-Frame from CDN #' + (idx+1));
+        s.onload = function () {
+          if (typeof AFRAME !== 'undefined') {
+            diagLog('A-Frame loaded v' + AFRAME.version);
+            window.__AFRAME_READY = true;
+            window.__AFRAME_CALLBACKS.forEach(function (cb) {
+              try { cb(); } catch (e) { diagLog('cb err: ' + e.message, 'err'); }
+            });
+            window.__AFRAME_CALLBACKS = [];
+          } else { idx++; tryNext(); }
+        };
+        s.onerror = function () { idx++; tryNext(); };
+        document.head.appendChild(s);
+      }
+      tryNext();
+    })();
+
+    function showFatal(title, html) {
+      const el = document.getElementById('fatal');
+      if (!el) { setTimeout(function () { showFatal(title, html); }, 50); return; }
+      el.style.display = 'flex';
+      el.innerHTML = '<h1>' + title + '</h1><p>' + html + '</p>';
+      const menu = document.getElementById('menu');
+      if (menu) { menu.style.display = 'none'; }
+    }
+
+    // Shared state before scene exists
+    var aframeSteering = 0;
+    var gameStarted = false;
+
+    // Register VR-controller components once A-Frame is ready
+    onAframeReady(function () {
+      AFRAME.registerComponent('thumbstick-steering', {
+        init: function () {
+          var self = this;
+          function attach() {
+            self.el.addEventListener('thumbstickmoved', function (e) {
+              aframeSteering = e.detail.x;
+            });
+            self.el.addEventListener('thumbstickup', function () { aframeSteering = 0; });
+          }
+          if (this.el.hasLoaded) { attach(); }
+          else { this.el.addEventListener('loaded', attach); }
+        }
+      });
+      AFRAME.registerComponent('start-listener', {
+        init: function () {
+          var self = this;
+          function onTrigger() { if (!gameStarted) { startGame(); } }
+          function attach() {
+            self.el.addEventListener('triggerdown', onTrigger);
+            self.el.addEventListener('gripdown',    onTrigger);
+          }
+          if (this.el.hasLoaded) { attach(); }
+          else { this.el.addEventListener('loaded', attach); }
+        }
+      });
+    });
+  </script>
+</head>
+<body>
+
+<div id="fatal"></div>
+
+<div id="diag-toggle" onclick="toggleDiag()">▸ DIAG</div>
+<div id="diag">
+  <h3>▸ DIAGNOSTICS</h3>
+  <div class="row"><span class="k">A-Frame:</span> <span id="d-aframe" class="v-warn">loading</span></div>
+  <div class="row"><span class="k">device:</span> <span id="d-device" class="v-ok">?</span></div>
+  <div class="row"><span class="k">input src:</span> <span id="d-input" class="v-ok">-</span></div>
+  <div class="row"><span class="k">throttle:</span> <span id="d-throttle" class="v-ok">0.00</span></div>
+  <div class="row"><span class="k">steer:</span> <span id="d-steer" class="v-ok">0.00</span></div>
+  <div class="row"><span class="k">chunks:</span> <span id="d-chunks" class="v-warn">-</span></div>
+  <div class="row"><span class="k">errors:</span> <span id="d-errors" class="v-ok">0</span></div>
+  <button onclick="dumpDiag()">DUMP LOG</button>
+</div>
+
+<div id="menu">
+  <h1>SPEEDER BIKE</h1>
+  <div class="sub">VR EXERCISE EXPERIENCE</div>
+
+  <div id="menu-device" class="device">DETECTING HARDWARE...</div>
+  <div id="menu-prompt" class="prompt">INITIALIZING</div>
+  <div id="menu-controls" class="controls-grid"></div>
+
+  <button id="menu-btn" onclick="startGame()" disabled>LOADING...</button>
+  <div id="menu-status" class="status">▸ loading A-Frame</div>
+  <div class="version">v0.15 — ALPHA</div>
+</div>
+
+<div id="hud">
+  <div class="label">POWER</div>
+  <div class="val" id="hud-power">0 W</div>
+  <div class="label" style="margin-top:6px">SPEED</div>
+  <div class="val" id="hud-speed">0.0 km/h</div>
+  <div class="label" style="margin-top:6px">CADENCE</div>
+  <div class="val" id="hud-cadence">0 rpm</div>
+</div>
+<div id="ws-status" class="disconnected">● WAITING FOR COMPANION APP</div>
+
+<!-- Touch controls overlay (only visible on touch devices) -->
+<div id="touch-controls">
+  <div id="touch-throttle">
+    <div id="touch-throttle-fill"></div>
+    <div id="touch-throttle-label">THROTTLE</div>
+  </div>
+  <div id="touch-steer">
+    <div id="touch-steer-label">STEER</div>
+    <div id="touch-steer-stick"></div>
+  </div>
+</div>
+
+<div id="scene-mount"></div>
+
+<script>
+  // ═══════════════════════════════════════════════════
+  // CONFIG
+  // ═══════════════════════════════════════════════════
+  const MAX_POWER      = 150;
+  const MAX_SPEED_Z    = 0.8;
+  const STEERING_SPEED = 0.04;
+  const IDLE_SPEED_Z   = 0.05;
+  const WS_PORT        = 8765;
+  const CHUNK_LENGTH   = 100;
+  const CHUNK_WIDTH    = 50;
+  const FOG_OPAQUE_FRAC = 0.5;
+  const FOG_COLOR       = '#87ceeb';
+  const KB_ACCEL = 0.02;
+  const KB_DECEL = 0.03;
+  function calcFogDensity() { return 4.605 / (CHUNK_LENGTH * FOG_OPAQUE_FRAC); }
+
+  // ═══════════════════════════════════════════════════
+  // UNIFIED INPUT SYSTEM
+  // Sources merge by priority each tick:
+  //   Throttle: bike-power > keyboard > touch > gamepad > idle-coast
+  //   Steer:    VR-stick   > keyboard > touch > gamepad > bike-steer
+  // ═══════════════════════════════════════════════════
+  const Input = {
+    throttle: 0,         // final 0..1
+    steer: 0,            // final -1..1
+    source: 'idle',      // debug label
+
+    // raw inputs
+    kb:      { w: false, s: false, a: false, d: false },
+    kbRamp:  0,          // ramped keyboard throttle
+    touch:   { throttle: 0, steer: 0, throttleActive: false, steerActive: false },
+    gp:      { throttle: 0, steer: 0, connected: false },
+    vrStick: 0,          // fed by aframeSteering externally
+    bike:    { power: 0, steer: 0 },  // from WebSocket
+
+    update() {
+      // ── Throttle priority ──
+      let t = 0, src = 'idle';
+
+      if (this.bike.power > 5) {
+        t = Math.min(this.bike.power / MAX_POWER, 1);
+        src = 'bike';
+        this.kbRamp = Math.max(0, this.kbRamp - KB_DECEL * 0.4);
+      } else {
+        // KB ramping
+        if (this.kb.w)      { this.kbRamp = Math.min(1, this.kbRamp + KB_ACCEL); }
+        else if (this.kb.s) { this.kbRamp = Math.max(0, this.kbRamp - KB_DECEL * 2); }
+        else                { this.kbRamp = Math.max(0, this.kbRamp - KB_DECEL * 0.4); }
+
+        if (this.kbRamp > 0.01)            { t = this.kbRamp; src = 'kb'; }
+        else if (this.touch.throttleActive){ t = this.touch.throttle; src = 'touch'; }
+        else if (this.gp.connected && this.gp.throttle > 0.05) {
+          t = this.gp.throttle; src = 'gamepad';
+        }
+      }
+
+      // ── Steer priority ──
+      let s = 0;
+      if (Math.abs(this.vrStick) > 0.05) { s = this.vrStick; }
+      else if (this.kb.a)                { s = -1; }
+      else if (this.kb.d)                { s =  1; }
+      else if (this.touch.steerActive)   { s = this.touch.steer; }
+      else if (this.gp.connected && Math.abs(this.gp.steer) > 0.15) {
+        s = this.gp.steer;
+      } else { s = this.bike.steer; }
+
+      this.throttle = t;
+      this.steer = s;
+      this.source = src;
+    }
+  };
+
+  // ═══════════════════════════════════════════════════
+  // STATE
+  // ═══════════════════════════════════════════════════
+  let posX = 0, posZ = 0;
+  const activeChunks = {};
+
+  // ═══════════════════════════════════════════════════
+  // UTILITIES
+  // ═══════════════════════════════════════════════════
+  function updateHUD() {
+    const p = Input.bike.power;
+    const s = (Input.throttle * MAX_SPEED_Z * 60).toFixed(1);  // approx km/h
+    document.getElementById('hud-power').textContent   = `${p} W`;
+    document.getElementById('hud-speed').textContent   = `${s} km/h`;
+    document.getElementById('hud-cadence').textContent = `${Math.round(p / 3)} rpm`;
+    const vp = document.getElementById('vr-power');
+    const vs = document.getElementById('vr-speed');
+    if (vp) { vp.setAttribute('value', `${p} W`); }
+    if (vs) { vs.setAttribute('value', `${s} km/h`); }
+  }
+
+  // ═══════════════════════════════════════════════════
+  // MENU UPDATING
+  // ═══════════════════════════════════════════════════
+  function updateMenuDeviceInfo() {
+    const deviceEl  = document.getElementById('menu-device');
+    const promptEl  = document.getElementById('menu-prompt');
+    const ctrlsEl   = document.getElementById('menu-controls');
+
+    let deviceName = 'DESKTOP';
+    let prompt     = 'PRESS ANY KEY OR CLICK TO START';
+    let controls   = [];
+
+    if (DEVICE.isQuest) {
+      deviceName = 'META QUEST';
+      prompt     = 'PULL TRIGGER TO START VR';
+      controls   = [
+        ['TRIGGER', 'start / enter VR'],
+        ['STICK',   'steer'],
+        ['BIKE',    'throttle (via companion app)']
+      ];
+    } else if (DEVICE.vrSupported) {
+      deviceName = 'WEBXR VR AVAILABLE';
+      prompt     = 'TAP START — VR OPTIONAL';
+      controls   = [
+        ['VR BUTTON', 'enter immersive mode'],
+        ['TRIGGER',   'start in VR'],
+        ['W/S',       'throttle'],
+        ['A/D',       'steer']
+      ];
+    } else if (DEVICE.isMobile || DEVICE.isTouch) {
+      deviceName = DEVICE.isMobile ? 'MOBILE / TABLET' : 'TOUCHSCREEN';
+      prompt     = 'TAP TO START';
+      controls   = [
+        ['THROTTLE ZONE', 'hold & drag up'],
+        ['STEER ZONE',    'drag left/right'],
+        ['DRAG SCENE',    'look around']
+      ];
+    } else {
+      controls = [
+        ['W / S',    'throttle'],
+        ['A / D',    'steer'],
+        ['MOUSE',    'click scene then drag to look'],
+        ['GAMEPAD',  'stick + right trigger (if plugged in)']
+      ];
+    }
+
+    deviceEl.textContent = '▸ ' + deviceName;
+    promptEl.textContent = prompt;
+
+    ctrlsEl.innerHTML = '';
+    controls.forEach(function (c) {
+      const k = document.createElement('div'); k.className = 'k'; k.textContent = c[0];
+      const v = document.createElement('div'); v.textContent = c[1];
+      ctrlsEl.appendChild(k); ctrlsEl.appendChild(v);
+    });
+  }
+  updateMenuDeviceInfo();
+
+  // ═══════════════════════════════════════════════════
+  // KEYBOARD
+  // ═══════════════════════════════════════════════════
+  document.addEventListener('keydown', (e) => {
+    if (!gameStarted && e.key.length === 1) { startGame(); return; }
+    switch (e.key) {
+      case 'w': case 'W': case 'ArrowUp':    Input.kb.w = true; break;
+      case 's': case 'S': case 'ArrowDown':  Input.kb.s = true; break;
+      case 'a': case 'A': case 'ArrowLeft':  Input.kb.a = true; break;
+      case 'd': case 'D': case 'ArrowRight': Input.kb.d = true; break;
+    }
+  });
+  document.addEventListener('keyup', (e) => {
+    switch (e.key) {
+      case 'w': case 'W': case 'ArrowUp':    Input.kb.w = false; break;
+      case 's': case 'S': case 'ArrowDown':  Input.kb.s = false; break;
+      case 'a': case 'A': case 'ArrowLeft':  Input.kb.a = false; break;
+      case 'd': case 'D': case 'ArrowRight': Input.kb.d = false; break;
+    }
+  });
+
+  // ═══════════════════════════════════════════════════
+  // GAMEPAD (non-VR Xbox/PS style)
+  // ═══════════════════════════════════════════════════
+  window.addEventListener('gamepadconnected', (e) => {
+    diagLog('gamepad: ' + e.gamepad.id);
+    DEVICE.gamepadConnected = true;
+    Input.gp.connected = true;
+  });
+  window.addEventListener('gamepaddisconnected', () => {
+    Input.gp.connected = false;
+  });
+  function pollGamepad() {
+    if (!DEVICE.hasGamepadAPI) { return; }
+    const pads = navigator.getGamepads();
+    for (let i = 0; i < pads.length; i++) {
+      const gp = pads[i];
+      if (!gp) { continue; }
+      // Left stick X = steer, right trigger = throttle
+      // For VR controllers this path is used only when outside immersive mode
+      const leftX = gp.axes[0] || 0;
+      // Most PC gamepads: rightTrigger is buttons[7]
+      const rt = (gp.buttons[7] && gp.buttons[7].value) || 0;
+      Input.gp.steer    = Math.abs(leftX) > 0.1 ? leftX : 0;
+      Input.gp.throttle = rt;
+      Input.gp.connected = true;
+      return;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════
+  // TOUCH CONTROLS
+  // ═══════════════════════════════════════════════════
+  function setupTouchControls() {
+    const wrapper = document.getElementById('touch-controls');
+    const thr     = document.getElementById('touch-throttle');
+    const thrFill = document.getElementById('touch-throttle-fill');
+    const str     = document.getElementById('touch-steer');
+    const strStk  = document.getElementById('touch-steer-stick');
+
+    if (!DEVICE.isTouch) { return; }
+    wrapper.classList.add('visible');
+
+    // Throttle: vertical drag within circle, up = more throttle
+    let thrActive = false;
+    let thrStartY = 0;
+    const thrMaxPx = 90;
+    thr.addEventListener('touchstart', (e) => {
+      thrActive = true;
+      thrStartY = e.touches[0].clientY;
+      Input.touch.throttleActive = true;
+      e.preventDefault();
+    }, { passive: false });
+    thr.addEventListener('touchmove', (e) => {
+      if (!thrActive) { return; }
+      const dy = thrStartY - e.touches[0].clientY;  // up = positive
+      const t  = Math.max(0, Math.min(1, dy / thrMaxPx));
+      Input.touch.throttle = t;
+      thrFill.style.height = (t * 100) + '%';
+      e.preventDefault();
+    }, { passive: false });
+    const thrRelease = () => {
+      thrActive = false;
+      Input.touch.throttleActive = false;
+      Input.touch.throttle = 0;
+      thrFill.style.height = '0';
+    };
+    thr.addEventListener('touchend', thrRelease);
+    thr.addEventListener('touchcancel', thrRelease);
+
+    // Steer: horizontal drag, center = 0
+    let strActive = false;
+    let strStartX = 0;
+    const strMaxPx = 60;
+    str.addEventListener('touchstart', (e) => {
+      strActive = true;
+      strStartX = e.touches[0].clientX;
+      Input.touch.steerActive = true;
+      e.preventDefault();
+    }, { passive: false });
+    str.addEventListener('touchmove', (e) => {
+      if (!strActive) { return; }
+      const dx = e.touches[0].clientX - strStartX;
+      const s  = Math.max(-1, Math.min(1, dx / strMaxPx));
+      Input.touch.steer = s;
+      strStk.style.transform = `translate(calc(-50% + ${s * 45}px), -50%)`;
+      e.preventDefault();
+    }, { passive: false });
+    const strRelease = () => {
+      strActive = false;
+      Input.touch.steerActive = false;
+      Input.touch.steer = 0;
+      strStk.style.transform = 'translate(-50%, -50%)';
+    };
+    str.addEventListener('touchend', strRelease);
+    str.addEventListener('touchcancel', strRelease);
+
+    // Any tap on non-control area starts the game
+    document.addEventListener('touchend', (e) => {
+      if (gameStarted) { return; }
+      const tgt = e.target;
+      if (tgt.closest('#menu-btn') || tgt.closest('#diag') || tgt.closest('#diag-toggle')) { return; }
+      startGame();
+    });
+  }
+
+  // ═══════════════════════════════════════════════════
+  // MOUSE — click to start on desktop
+  // ═══════════════════════════════════════════════════
+  document.addEventListener('mousedown', (e) => {
+    if (gameStarted) { return; }
+    if (e.target.closest('#menu-btn') || e.target.closest('#diag') || e.target.closest('#diag-toggle')) { return; }
+    startGame();
+  });
+
+  // ═══════════════════════════════════════════════════
+  // DIAG TOGGLE
+  // ═══════════════════════════════════════════════════
+  function toggleDiag() {
+    const d = document.getElementById('diag');
+    const t = document.getElementById('diag-toggle');
+    if (d.style.display === 'block') {
+      d.style.display = 'none'; t.style.display = 'block';
+    } else {
+      d.style.display = 'block'; t.style.display = 'none';
+    }
+  }
+  function dumpDiag() {
+    console.log('=== DIAGNOSTIC DUMP ===');
+    window.__DIAG.events.forEach(e => console.log(e));
+    window.__DIAG.errors.forEach(e => console.error(e));
+  }
+  function updateDiag() {
+    const scene = document.querySelector('a-scene');
+    const setD = (id, val, cls) => {
+      const el = document.getElementById(id);
+      if (!el) { return; }
+      el.textContent = val;
+      if (cls) { el.className = cls; }
+    };
+    setD('d-aframe', window.__AFRAME_READY ? 'v' + (typeof AFRAME !== 'undefined' ? AFRAME.version : '?') : 'loading',
+         window.__AFRAME_READY ? 'v-ok' : 'v-warn');
+    setD('d-device', DEVICE.primaryInput + (DEVICE.vrSupported ? '+vr' : ''), 'v-ok');
+    setD('d-input', Input.source, 'v-ok');
+    setD('d-throttle', Input.throttle.toFixed(2), 'v-ok');
+    setD('d-steer', Input.steer.toFixed(2), 'v-ok');
+    setD('d-chunks', Object.keys(activeChunks).join(',') || '-',
+         Object.keys(activeChunks).length ? 'v-ok' : 'v-warn');
+    setD('d-errors', window.__DIAG.errors.length,
+         window.__DIAG.errors.length ? 'v-bad' : 'v-ok');
+  }
+  setInterval(updateDiag, 300);
+
+  // ═══════════════════════════════════════════════════
+  // CHUNK SYSTEM
+  // ═══════════════════════════════════════════════════
+  function createChunk(index) {
+    if (activeChunks[index]) { return; }
+    const chunk = document.createElement('a-entity');
+    chunk.setAttribute('id', 'chunk-' + index);
+    const centerZ = -(index * CHUNK_LENGTH) - (CHUNK_LENGTH / 2);
+
+    const ground = document.createElement('a-plane');
+    ground.setAttribute('position', `0 -1 ${centerZ}`);
+    ground.setAttribute('rotation', '-90 0 0');
+    ground.setAttribute('width',  CHUNK_WIDTH * 4);
+    ground.setAttribute('height', CHUNK_LENGTH);
+    ground.setAttribute('material', 'color: #4a7c59; roughness: 0.95');
+    chunk.appendChild(ground);
+
+    [{x:-8,z:-20,r:1.2},{x:6,z:-45,r:0.8},{x:-4,z:-70,r:1.5},{x:10,z:-85,r:1.0}].forEach(function (rp) {
+      const rock = document.createElement('a-sphere');
+      rock.setAttribute('position', `${rp.x} ${rp.r - 1} ${centerZ + rp.z}`);
+      rock.setAttribute('radius', String(rp.r));
+      rock.setAttribute('material', 'color: #7a6a5a; roughness: 0.99');
+      chunk.appendChild(rock);
+    });
+
+    document.getElementById('world').appendChild(chunk);
+    activeChunks[index] = chunk;
+  }
+  function destroyChunk(index) {
+    const chunk = activeChunks[index];
+    if (!chunk) { return; }
+    chunk.parentNode.removeChild(chunk);
+    delete activeChunks[index];
+  }
+  function updateChunks() {
+    const cur = Math.floor(posZ / CHUNK_LENGTH);
+    const prog = posZ % CHUNK_LENGTH;
+    let a, b;
+    if (prog < CHUNK_LENGTH / 2) { a = cur - 1; b = cur; }
+    else                         { a = cur;     b = cur + 1; }
+    createChunk(a); createChunk(b);
+    Object.keys(activeChunks).forEach(function (key) {
+      const idx = parseInt(key);
+      if (idx !== a && idx !== b) { destroyChunk(idx); }
+    });
+  }
+
+  // ═══════════════════════════════════════════════════
+  // WEBSOCKET
+  // ═══════════════════════════════════════════════════
+  let ws;
+  function connectWS() {
+    const params = new URLSearchParams(window.location.search);
+    const wsUrl = params.get('ws') || `ws://${params.get('host') || '192.168.1.100'}:${WS_PORT}`;
+    const statusEl = document.getElementById('ws-status');
+    diagLog('WS connecting to ' + wsUrl);
+    try { ws = new WebSocket(wsUrl); }
+    catch (e) { diagLog('WS construct failed: ' + e.message, 'warn'); return; }
+    ws.onopen = () => {
+      statusEl.className = 'connected';
+      statusEl.textContent = '● COMPANION CONNECTED';
+    };
+    ws.onmessage = (event) => {
+      try {
+        const raw = JSON.parse(event.data);
+        Input.bike.power = raw.power ?? 0;
+        Input.bike.steer = raw.steering ?? 0;
+        updateHUD();
+      } catch (e) {}
+    };
+    ws.onclose = () => {
+      statusEl.className = 'disconnected';
+      statusEl.textContent = '● COMPANION DISCONNECTED — retrying...';
+      setTimeout(connectWS, 3000);
+    };
+    ws.onerror = () => {};
+  }
+
+  // ═══════════════════════════════════════════════════
+  // BUILD SCENE + REGISTER COMPONENTS (A-Frame ready)
+  // ═══════════════════════════════════════════════════
+  onAframeReady(function () {
+    document.getElementById('menu-btn').disabled = false;
+    document.getElementById('menu-btn').textContent = 'START RIDING';
+    document.getElementById('menu-status').textContent = '▸ READY';
+    document.getElementById('menu-status').style.color = '#00ff88';
+    updateMenuDeviceInfo();
+
+    // look-controls config:
+    //  - On desktop with pointerLockEnabled:false → click-drag to look
+    //  - On mobile → touch-drag to look + magicWindow (device orientation)
+    //  - In VR → headset tracking
+    const lookCfg = DEVICE.isTouch
+      ? 'pointerLockEnabled: false; magicWindowTrackingEnabled: true; touchEnabled: true'
+      : 'pointerLockEnabled: false; magicWindowTrackingEnabled: false; touchEnabled: false';
+
+    const sceneHTML = `
+      <a-scene renderer="alpha: false; antialias: true; foveationLevel: 1"
+               fog="type: exponential; color: ${FOG_COLOR}; density: ${calcFogDensity()}"
+               background="color: ${FOG_COLOR}"
+               vr-mode-ui="enabled: true"
+               device-orientation-permission-ui="enabled: false">
+        <a-assets></a-assets>
+        <a-sky color="${FOG_COLOR}"></a-sky>
+        <a-light type="directional" color="#fffbe6" intensity="1.2" position="1 4 -1"></a-light>
+        <a-light type="ambient" color="#c9e8ff" intensity="0.6"></a-light>
+
+        <a-entity id="world"></a-entity>
+
+        <a-entity id="bike-rig" position="0 0 0">
+          <a-entity id="bike-body" position="0 -0.6 -1.2">
+            <a-box width="0.5" height="0.2" depth="1.8"
+                   material="color:#1a1a2e; emissive:#0a0a1a; emissiveIntensity:0.3; roughness:0.3; metalness:0.7"></a-box>
+            <a-cylinder position="-0.35 0 0.3" radius="0.08" height="1.2" rotation="90 0 0"
+                        material="color:#0d0d1a; emissive:#000033; emissiveIntensity:0.5; metalness:0.9"></a-cylinder>
+            <a-cylinder position="0.35 0 0.3" radius="0.08" height="1.2" rotation="90 0 0"
+                        material="color:#0d0d1a; emissive:#000033; emissiveIntensity:0.5; metalness:0.9"></a-cylinder>
+            <a-sphere id="engine-glow-l" position="-0.35 0 0.9" radius="0.06"
+                      material="color:#00ccff; emissive:#00ccff; emissiveIntensity:1.0; shader:flat"></a-sphere>
+            <a-sphere id="engine-glow-r" position="0.35 0 0.9" radius="0.06"
+                      material="color:#00ccff; emissive:#00ccff; emissiveIntensity:1.0; shader:flat"></a-sphere>
+            <a-cylinder position="0 0.15 -0.5" radius="0.025" height="0.9" rotation="0 0 90"
+                        color="#444466" material="metalness:0.9; roughness:0.2"></a-cylinder>
+          </a-entity>
+
+          <a-camera id="player-cam" position="0 0 0"
+                    wasd-controls-enabled="false"
+                    look-controls="${lookCfg}">
+            <a-entity position="0 -0.3 -1" id="vr-hud">
+              <a-text id="vr-power" value="0 W"      color="#00ffcc" align="left" position="-0.35  0.08 0" width="1.2"></a-text>
+              <a-text id="vr-speed" value="0.0 km/h" color="#ffffff" align="left" position="-0.35  0    0" width="1.2"></a-text>
+            </a-entity>
+          </a-camera>
+
+          <a-entity id="right-controller" start-listener></a-entity>
+          <a-entity id="left-controller"  start-listener></a-entity>
+        </a-entity>
+      </a-scene>`;
+
+    document.getElementById('scene-mount').innerHTML = sceneHTML;
+
+    // Main tick component — reads Input, drives world
+    AFRAME.registerComponent('bike-controller', {
+      init: function () {
+        this.world    = document.getElementById('world');
+        this.bikeBody = document.getElementById('bike-body');
+        this.engineL  = document.getElementById('engine-glow-l');
+        this.engineR  = document.getElementById('engine-glow-r');
+        diagLog('bike-controller attached');
+      },
+      tick: function () {
+        if (!gameStarted) { return; }
+
+        // Pull from VR stick + gamepad
+        Input.vrStick = aframeSteering;
+        pollGamepad();
+        Input.update();
+
+        const powerNorm = Input.throttle;
+        const forwardVel = IDLE_SPEED_Z + powerNorm * (MAX_SPEED_Z - IDLE_SPEED_Z);
+        const steer = Input.steer;
+
+        posX += steer * STEERING_SPEED * (1 + powerNorm * 0.5);
+        posX = Math.max(-14, Math.min(14, posX));
+        posZ += forwardVel;
+
+        this.world.object3D.position.x = -posX;
+        this.world.object3D.position.z =  posZ;
+        updateChunks();
+
+        const tRoll = -steer * 0.3;
+        this.bikeBody.object3D.rotation.z += (tRoll - this.bikeBody.object3D.rotation.z) * 0.12;
+
+        const r = Math.floor(powerNorm * 255);
+        const g = Math.floor(100 + powerNorm * 155);
+        const b = Math.floor(255 - powerNorm * 200);
+        const intensity = 0.8 + powerNorm * 0.4;
+        const glowMat = `color:rgb(${r},${g},${b}); emissive:rgb(${r},${g},${b}); emissiveIntensity:${intensity}; shader:flat`;
+        this.engineL.setAttribute('material', glowMat);
+        this.engineR.setAttribute('material', glowMat);
+      }
+    });
+
+    const scene = document.querySelector('a-scene');
+    function attachCtrl() {
+      scene.setAttribute('bike-controller', '');
+      diagLog('bike-controller set on scene');
+    }
+    if (scene.hasLoaded) { attachCtrl(); }
+    else { scene.addEventListener('loaded', attachCtrl); }
+
+    scene.addEventListener('enter-vr', function () {
+      diagLog('enter-vr');
+      const rc = document.getElementById('right-controller');
+      const lc = document.getElementById('left-controller');
+      if (rc && !rc.components['oculus-touch-controls']) {
+        rc.setAttribute('oculus-touch-controls', 'hand: right');
+        rc.setAttribute('thumbstick-steering', '');
+      }
+      if (lc && !lc.components['oculus-touch-controls']) {
+        lc.setAttribute('oculus-touch-controls', 'hand: left');
+      }
+    });
+
+    // Setup touch controls once DOM is ready
+    setupTouchControls();
+  });
+
+  // ═══════════════════════════════════════════════════
+  // START GAME
+  // ═══════════════════════════════════════════════════
+  function startGame() {
+    if (!window.__AFRAME_READY) { return; }
+    if (gameStarted) { return; }
+    gameStarted = true;
+    diagLog('startGame');
+
+    document.getElementById('menu').style.display      = 'none';
+    document.getElementById('hud').style.display       = 'block';
+    document.getElementById('ws-status').style.display = 'block';
+
+    setTimeout(function () {
+      window.dispatchEvent(new Event('resize'));
+      const scene = document.querySelector('a-scene');
+      if (scene && scene.renderer) {
+        scene.renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    }, 50);
+
+    createChunk(0);
+    createChunk(1);
+    connectWS();
+  }
+</script>
+</body>
+</html>
